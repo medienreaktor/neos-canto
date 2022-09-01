@@ -176,7 +176,7 @@ final class CantoAssetProxyQuery implements AssetProxyQueryInterface
     public function count(): int
     {
         $response = $this->sendSearchRequest(1, []);
-        $responseObject = \GuzzleHttp\json_decode($response->getBody());
+        $responseObject = \GuzzleHttp\json_decode($response->getBody()->getContents());
         return $responseObject->found ?? 0;
     }
 
@@ -192,7 +192,7 @@ final class CantoAssetProxyQuery implements AssetProxyQueryInterface
     {
         $assetProxies = [];
         $response = $this->sendSearchRequest($this->limit, $this->orderings);
-        $responseObject = \GuzzleHttp\json_decode($response->getBody());
+        $responseObject = \GuzzleHttp\json_decode($response->getBody()->getContents());
 
         if (isset($responseObject->results) && is_array($responseObject->results)) {
             foreach ($responseObject->results as $rawAsset) {

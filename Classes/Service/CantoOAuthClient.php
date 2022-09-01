@@ -51,7 +51,7 @@ class CantoOAuthClient extends OAuthClient
      */
     protected $accountAuthorizationRepository;
 
-    public function getServiceType(): string
+    public static function getServiceType(): string
     {
         return CantoAssetSource::ASSET_SOURCE_IDENTIFIER;
     }
