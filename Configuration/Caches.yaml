@@ -3,3 +3,9 @@ Flownative_Canto_AssetProxy:
   backend: Neos\Cache\Backend\FileBackend
   backendOptions:
     defaultLifetime: 0
+
+Flownative_Canto_AssetProxyRepository:
+  frontend: Neos\Cache\Frontend\VariableFrontend
+  backend: Neos\Cache\Backend\FileBackend
+  backendOptions:
+    defaultLifetime: 3600

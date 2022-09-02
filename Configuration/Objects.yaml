@@ -8,6 +8,16 @@ Flownative\Canto\AssetSource\CantoAssetSource:
           1:
             value: Flownative_Canto_AssetProxy
 
+Flownative\Canto\AssetSource\CantoAssetProxyRepository:
+  properties:
+    assetProxyRepositoryCache:
+      object:
+        factoryObjectName: Neos\Flow\Cache\CacheManager
+        factoryMethodName: getCache
+        arguments:
+          1:
+            value: Flownative_Canto_AssetProxyRepository
+
 Flownative\Canto\Service\CantoOAuthClient:
   properties:
     stateCache:

@@ -19,6 +19,7 @@ use Flownative\OAuth2\Client\OAuthClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use Neos\Cache\Exception as CacheException;
 use Neos\Cache\Exception\InvalidDataException;
+use Neos\Flow\Annotations as Flow;
 use Neos\Media\Domain\Model\AssetCollection;
 use Neos\Media\Domain\Model\AssetSource\AssetProxy\AssetProxyInterface;
 use Neos\Media\Domain\Model\AssetSource\AssetProxyQueryResultInterface;
@@ -38,6 +39,12 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
      * @var AssetCollection
      */
     private $activeAssetCollection;
+
+    /**
+     * @Flow\Inject
+     * @var \Neos\Cache\Frontend\VariableFrontend $assetProxyRepositoryCache
+     */
+    protected $assetProxyRepositoryCache;
 
     /**
      * @param CantoAssetSource $assetSource
@@ -167,12 +174,23 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
      */
     public function countByTag(Tag $tag): int
     {
+        $identifier = 'countByTag-' . sha1($tag->getLabel());
+        $cacheEntry = $this->assetProxyRepositoryCache->get($identifier);
+
+        if ($cacheEntry) {
+            return $cacheEntry;
+        }
+
         $query = new CantoAssetProxyQuery($this->assetSource);
         $query->setActiveTag($tag);
         $query->setActiveAssetCollection($this->activeAssetCollection);
         $query->setAssetTypeFilter($this->assetTypeFilter);
         $query->setOrderings($this->orderings);
-        return $query->count();
+        $count = $query->count();
+
+        $this->assetProxyRepositoryCache->set($identifier, $count, ['countByTags']);
+
+        return $count;
     }
 
     /**

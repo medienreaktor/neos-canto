@@ -227,6 +227,31 @@ final class CantoClient
      * @throws OAuthClientException
      * @todo perhaps cache the result
      */
+    public function getFacetValues(string $facetName): array
+    {
+        $response = $this->sendAuthenticatedRequest('search');
+        if ($response->getStatusCode() === 200) {
+            $result = \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
+
+            foreach ($result['facets'] as $facet) {
+                if ($facet['name'] === $facetName) {
+                    return $facet['value'];
+                }
+            }
+        }
+        return [];
+    }
+
+    /**
+     * @throws AuthenticationFailedException
+     * @throws GuzzleException
+     * @throws HttpException
+     * @throws IdentityProviderException
+     * @throws MissingActionNameException
+     * @throws MissingClientSecretException
+     * @throws OAuthClientException
+     * @todo perhaps cache the result
+     */
     public function getCustomFields(): array
     {
         $response = $this->sendAuthenticatedRequest('custom/field');
