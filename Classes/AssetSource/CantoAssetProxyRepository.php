@@ -17,6 +17,7 @@ use Flownative\Canto\Exception\AssetNotFoundException;
 use Flownative\Canto\Exception\AuthenticationFailedException;
 use Flownative\OAuth2\Client\OAuthClientException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Utils;
 use Neos\Cache\Exception as CacheException;
 use Neos\Cache\Exception\InvalidDataException;
 use Neos\Media\Domain\Model\AssetCollection;
@@ -28,6 +29,7 @@ use Neos\Media\Domain\Model\AssetSource\SupportsCollectionsInterface;
 use Neos\Media\Domain\Model\AssetSource\SupportsSortingInterface;
 use Neos\Media\Domain\Model\AssetSource\SupportsTaggingInterface;
 use Neos\Media\Domain\Model\Tag;
+use Psr\Http\Message\StreamInterface;
 
 /**
  * CantoAssetProxyRepository
@@ -69,17 +71,21 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
     {
         $cacheEntry = $this->assetSource->getAssetProxyCache()->get($identifier);
         if ($cacheEntry) {
-            $responseObject = \GuzzleHttp\json_decode($cacheEntry);
+            $responseObject = Utils::jsonDecode($cacheEntry);
         } else {
             $response = $this->assetSource->getCantoClient()->getFile($identifier);
-            $responseObject = \GuzzleHttp\json_decode($response->getBody());
+            $responseContent = $response->getBody()->getContents();
+            if ($responseContent instanceof StreamInterface) {
+                $responseContent = $responseContent->getContents();
+            }
+            $responseObject = Utils::jsonDecode($responseContent);
         }
 
         if (!$responseObject instanceof \stdClass) {
             throw new AssetNotFoundException('Asset not found', 1526636260);
         }
 
-        $this->assetSource->getAssetProxyCache()->set($identifier, \GuzzleHttp\json_encode($responseObject, JSON_FORCE_OBJECT));
+        $this->assetSource->getAssetProxyCache()->set($identifier, Utils::jsonEncode($responseObject, JSON_FORCE_OBJECT));
 
         return CantoAssetProxy::fromJsonObject($responseObject, $this->assetSource);
     }
@@ -188,6 +194,19 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
         $query->setAssetTypeFilter($this->assetTypeFilter);
         $query->setOrderings($this->orderings);
         return $query->count();
+    }
+
+    /**
+     * @param Tag $tag
+     * @return int
+     */
+    public function countByTag(Tag $tag): int
+    {
+        try {
+            return ($this->findByTag($tag))->count();
+        } catch (AuthenticationFailedException|OAuthClientException|GuzzleException $e) {
+            return 0;
+        }
     }
 
     /**

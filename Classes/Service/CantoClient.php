@@ -25,6 +25,7 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\ServerRequest;
 use GuzzleHttp\Psr7\Uri;
+use GuzzleHttp\Utils;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Core\Bootstrap;
@@ -231,7 +232,7 @@ final class CantoClient
     {
         $response = $this->sendAuthenticatedRequest('custom/field');
         if ($response->getStatusCode() === 200) {
-            return \GuzzleHttp\json_decode($response->getBody()->getContents());
+            return Utils::jsonDecode($response->getBody()->getContents());
         }
         return [];
     }
@@ -249,7 +250,7 @@ final class CantoClient
     {
         $response = $this->sendAuthenticatedRequest('user');
         if ($response->getStatusCode() === 200) {
-            return \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
+            return Utils::jsonDecode($response->getBody()->getContents(), true);
         }
         return [];
     }
@@ -267,7 +268,7 @@ final class CantoClient
     {
         $response = $this->sendAuthenticatedRequest('tree');
         if ($response->getStatusCode() === 200) {
-            return \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
+            return Utils::jsonDecode($response->getBody()->getContents(), true);
         }
         return [];
     }
@@ -336,7 +337,7 @@ final class CantoClient
                 'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $authorization->getAccessToken()
             ],
-            ($bodyFields !== [] ? \GuzzleHttp\json_encode($bodyFields) : '')
+            ($bodyFields !== [] ? Utils::jsonEncode($bodyFields) : '')
         );
     }
 
