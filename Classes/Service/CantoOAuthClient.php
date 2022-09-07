@@ -126,7 +126,7 @@ class CantoOAuthClient extends OAuthClient
     {
         $stateFromCache = $this->stateCache->get($stateIdentifier);
         if (empty($stateFromCache)) {
-            throw new OAuthClientException(sprintf('OAuth2 (%s): Finishing authorization failed because oAuth state %s could not be retrieved from the state cache.', $this->getServiceType(), $stateIdentifier), 1627046882);
+            throw new OAuthClientException(sprintf('OAuth2 (%s): Finishing authorization failed because oAuth state %s could not be retrieved from the state cache.', CantoOAuthClient::getServiceType(), $stateIdentifier), 1627046882);
         }
 
         $authorizationId = $stateFromCache['authorizationId'];
