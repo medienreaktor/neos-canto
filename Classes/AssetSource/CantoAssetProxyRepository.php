@@ -171,21 +171,6 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
      * @throws GuzzleException
      * @throws AuthenticationFailedException
      */
-    public function countByTag(Tag $tag): int
-    {
-        $query = new CantoAssetProxyQuery($this->assetSource);
-        $query->setActiveTag($tag);
-        $query->setActiveAssetCollection($this->activeAssetCollection);
-        $query->setAssetTypeFilter($this->assetTypeFilter);
-        $query->setOrderings($this->orderings);
-        return $query->count();
-    }
-
-    /**
-     * @throws OAuthClientException
-     * @throws GuzzleException
-     * @throws AuthenticationFailedException
-     */
     public function countUntagged(): int
     {
         $query = new CantoAssetProxyQuery($this->assetSource);
