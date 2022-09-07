@@ -180,21 +180,12 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
      */
     public function countUntagged(): int
     {
-        $identifier = 'countByTag-' . sha1($tag->getLabel());
-        $cacheEntry = $this->assetProxyRepositoryCache->get($identifier);
-
-        if ($cacheEntry) {
-            return $cacheEntry;
-        }
-
         $query = new CantoAssetProxyQuery($this->assetSource);
         $query->setActiveAssetCollection($this->activeAssetCollection);
         $query->prepareUntaggedQuery();
         $query->setAssetTypeFilter($this->assetTypeFilter);
         $query->setOrderings($this->orderings);
         $count = $query->count();
-
-        $this->assetProxyRepositoryCache->set($identifier, $count, ['countByTags']);
 
         return $count;
     }
@@ -205,8 +196,19 @@ class CantoAssetProxyRepository implements AssetProxyRepositoryInterface, Suppor
      */
     public function countByTag(Tag $tag): int
     {
+        $identifier = 'countByTag-' . sha1($tag->getLabel());
+        $cacheEntry = $this->assetProxyRepositoryCache->get($identifier);
+
+        if ($cacheEntry) {
+            return $cacheEntry;
+        }
+
         try {
-            return ($this->findByTag($tag))->count();
+            $count = $this->findByTag($tag)->count();
+
+            $this->assetProxyRepositoryCache->set($identifier, $count, ['countByTags']);
+
+            return $count;
         } catch (AuthenticationFailedException|OAuthClientException|GuzzleException $e) {
             return 0;
         }
