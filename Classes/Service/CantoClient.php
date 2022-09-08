@@ -248,6 +248,31 @@ final class CantoClient
      * @throws MissingActionNameException
      * @throws MissingClientSecretException
      * @throws OAuthClientException
+     * @todo perhaps cache the result
+     */
+    public function getFacetValues(string $facetName): array
+    {
+        $response = $this->sendAuthenticatedRequest('search');
+        if ($response->getStatusCode() === 200) {
+            $result = json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
+
+            foreach ($result['facets'] as $facet) {
+                if ($facet['name'] === $facetName) {
+                    return $facet['value'];
+                }
+            }
+        }
+        return [];
+    }
+
+    /**
+     * @throws AuthenticationFailedException
+     * @throws GuzzleException
+     * @throws HttpException
+     * @throws IdentityProviderException
+     * @throws MissingActionNameException
+     * @throws MissingClientSecretException
+     * @throws OAuthClientException
      * @throws \JsonException
      */
     public function user(): array
