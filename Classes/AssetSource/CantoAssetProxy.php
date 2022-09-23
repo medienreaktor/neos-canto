@@ -202,7 +202,8 @@ final class CantoAssetProxy implements AssetProxyInterface, HasRemoteOriginalInt
 
     public function getTags(): array
     {
-        return $this->tags;
+        return [];
+        // return $this->tags;
     }
 
     public function isImported(): bool
