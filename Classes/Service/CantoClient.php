@@ -148,7 +148,7 @@ final class CantoClient
     private function redirectToUri(string $uri): void
     {
         header('Location: ' . $uri);
-        throw new StopActionException('Canto login required', 1625222167);
+        throw new AuthenticationFailedException('Canto login required', 1625222167);
     }
 
     /**
