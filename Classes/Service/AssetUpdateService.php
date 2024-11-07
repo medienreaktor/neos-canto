@@ -23,6 +23,7 @@ use Neos\Cache\Exception\InvalidDataException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Log\Utility\LogEnvironment;
+use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Media\Domain\Model\AssetInterface;
@@ -31,13 +32,13 @@ use Neos\Media\Domain\Repository\AssetRepository;
 use Neos\Media\Domain\Repository\ImportedAssetRepository;
 use Neos\Media\Domain\Service\AssetService;
 use Neos\Media\Domain\Service\AssetSourceService;
+use Neos\Media\Exception\AssetServiceException;
 use Psr\Log\LoggerInterface;
 
 /**
  * Canto asset update service for webhook handling
  */
-final class AssetUpdateService
-{
+final class AssetUpdateService {
     /**
      * @Flow\Inject
      * @var LoggerInterface
@@ -86,13 +87,14 @@ final class AssetUpdateService
      */
     protected $assetSourceService;
 
-    public function handleEvent(string $event, array $payload): bool
-    {
+    public function handleEvent(string $event, array $payload): bool {
         switch ($event) {
             case 'update':
                 return $this->handleAssetMetadataUpdated($payload);
             case 'add':
                 return $this->handleNewAssetVersionAdded($payload);
+            case 'remove':
+                return $this->handleAssetRemoved($payload);
             default:
                 $this->logger->debug(sprintf('Unhandled event "%s" skipped', $event), LogEnvironment::fromMethodName(__METHOD__));
         }
@@ -100,8 +102,7 @@ final class AssetUpdateService
         return false;
     }
 
-    public function handleAssetMetadataUpdated(array $payload): bool
-    {
+    public function handleAssetMetadataUpdated(array $payload): bool {
         $identifier = $this->buildIdentifier($payload['scheme'], $payload['id']);
 
         $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
@@ -131,8 +132,7 @@ final class AssetUpdateService
         }
     }
 
-    public function handleNewAssetVersionAdded(array $payload): bool
-    {
+    public function handleNewAssetVersionAdded(array $payload): bool {
         $identifier = $this->buildIdentifier($payload['scheme'], $payload['id']);
 
         $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
@@ -152,6 +152,28 @@ final class AssetUpdateService
         }
     }
 
+
+    public function handleAssetRemoved(array $payload): bool {
+        $identifier = $this->buildIdentifier($payload['scheme'], $payload['id']);
+        $this->logger->warning("Removing asset");
+
+        $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
+        if ($importedAsset === null) {
+            $this->logger->debug(sprintf('Remove asset skipped on non-imported asset %s', $identifier), LogEnvironment::fromMethodName(__METHOD__));
+            return true;
+        }
+
+        try {
+            $this->removeAsset($identifier);
+
+            $this->persistenceManager->persistAll();
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     /**
      * @throws OAuthClientException
      * @throws AuthenticationFailedException
@@ -161,8 +183,7 @@ final class AssetUpdateService
      * @throws GuzzleException
      * @throws InvalidDataException
      */
-    private function replaceAsset(string $identifier): void
-    {
+    private function replaceAsset(string $identifier): void {
         $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
         $localAssetIdentifier = $importedAsset->getLocalAssetIdentifier();
 
@@ -192,13 +213,41 @@ final class AssetUpdateService
         $this->resourceManager->deleteResource($previousResource);
     }
 
-    private function buildIdentifier(string $scheme, string $identifier): string
-    {
+    /**
+     * @throws OAuthClientException
+     * @throws AuthenticationFailedException
+     * @throws Exception
+     * @throws AssetNotFoundException
+     * @throws \Neos\Flow\ResourceManagement\Exception
+     * @throws GuzzleException
+     * @throws InvalidDataException
+     */
+    private function removeAsset(string $identifier): void {
+        $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
+        $localAssetIdentifier = $importedAsset->getLocalAssetIdentifier();
+        $this->logger->warning(sprintf('local identifier %s', $localAssetIdentifier));
+
+        /** @var AssetInterface $localAsset */
+        $localAsset = $this->assetRepository->findByIdentifier($localAssetIdentifier);
+        try {
+            $previousResource = $localAsset->getResource();
+            $this->assetRepository->remove($localAsset);
+            $this->logger->warning(sprintf('Removed asset %s', $localAssetIdentifier), LogEnvironment::fromMethodName(__METHOD__));
+            $this->resourceManager->deleteResource($previousResource);
+            $this->logger->warning(sprintf('deleted resource for asset %s', json_encode($localAsset)), LogEnvironment::fromMethodName(__METHOD__));
+
+        } catch (IllegalObjectTypeException $e) {
+
+        } catch (AssetServiceException $e) {
+
+        }
+    }
+
+    private function buildIdentifier(string $scheme, string $identifier): string {
         return sprintf('%s-%s', $scheme, $identifier);
     }
 
-    private function flushProxyForAsset(string $identifier): void
-    {
+    private function flushProxyForAsset(string $identifier): void {
         $assetProxyCache = $this->getAssetSource()->getAssetProxyCache();
 
         if ($assetProxyCache->has($identifier)) {
@@ -209,8 +258,7 @@ final class AssetUpdateService
         }
     }
 
-    private function getAssetSource(): CantoAssetSource
-    {
+    private function getAssetSource(): CantoAssetSource {
         /** @var CantoAssetSource $assetSource */
         $assetSource = $this->assetSourceService->getAssetSources()[CantoAssetSource::ASSET_SOURCE_IDENTIFIER];
         $assetSource->getCantoClient()->allowClientCredentialsAuthentication(true);
