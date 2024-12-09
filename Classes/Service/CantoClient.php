@@ -45,8 +45,7 @@ use Psr\Http\Message\UriInterface;
 /**
  * Canto API client
  */
-final class CantoClient
-{
+final class CantoClient {
     protected bool $allowClientCredentialsAuthentication = false;
 
     private ?Authorization $authorization = null;
@@ -81,13 +80,11 @@ final class CantoClient
      */
     protected $apiResponsesCache;
 
-    public function __construct(private string $apiBaseUri, protected string $appId, protected string $appSecret, private string $serviceName)
-    {
+    public function __construct(private string $apiBaseUri, protected string $appId, protected string $appSecret, private string $serviceName) {
         $this->httpClient = new Client(['allow_redirects' => true]);
     }
 
-    public function allowClientCredentialsAuthentication(bool $allowed): void
-    {
+    public function allowClientCredentialsAuthentication(bool $allowed): void {
         $this->allowClientCredentialsAuthentication = $allowed;
     }
 
@@ -98,8 +95,7 @@ final class CantoClient
      * @throws AuthenticationFailedException
      * @throws IdentityProviderException
      */
-    private function authenticate(): void
-    {
+    private function authenticate($actionResponse = null): void {
         $oAuthClient = new CantoOAuthClient($this->serviceName);
 
         if ($this->securityContext->isInitialized()) {
@@ -120,6 +116,7 @@ final class CantoClient
                         ->reset()
                         ->setCreateAbsoluteUri(true)
                         ->uriFor('needed', ['returnUri' => (string)$returnToUri], 'Authorization', 'Flownative.Canto')
+                    , $actionResponse
                 );
             }
         } elseif ($this->allowClientCredentialsAuthentication) {
@@ -137,8 +134,7 @@ final class CantoClient
         }
     }
 
-    private function getCurrentUri(): UriInterface
-    {
+    private function getCurrentUri(): UriInterface {
         $rh = $this->bootstrap->getActiveRequestHandler();
         if ($rh instanceof HttpRequestHandlerInterface) {
             return $rh->getHttpRequest()->getUri();
@@ -147,10 +143,17 @@ final class CantoClient
         throw new \RuntimeException(sprintf('Active request handler (%s) does not implement Neos\Flow\Http\HttpRequestHandlerInterface, could not determine request URI', $rh::class), 1632465274);
     }
 
-    private function redirectToUri(string $uri): void
-    {
-        header('Location: ' . $uri);
-        die();
+    protected function redirectToUri($uri, $response) {
+        if ($response) {
+            if (!$uri instanceof UriInterface) {
+                $uri = new Uri($uri);
+            }
+            $response->setRedirectUri($uri, 303);
+
+        } else {
+            header('Location: ' . $uri);
+            die();
+        }
         throw new StopActionException('Canto login required', 1625222167);
     }
 
@@ -164,8 +167,7 @@ final class CantoClient
      * @throws IdentityProviderException
      * @throws \JsonException
      */
-    public function getFile(string $assetProxyId): ResponseInterface
-    {
+    public function getFile(string $assetProxyId): ResponseInterface {
         [$scheme, $id] = explode('-', $assetProxyId);
         return $this->sendAuthenticatedRequest($scheme . '/' . $id);
     }
@@ -173,8 +175,7 @@ final class CantoClient
     /**
      * @TODO Implement updateFile() method.
      */
-    public function updateFile(string $id, array $metadata): ResponseInterface
-    {
+    public function updateFile(string $id, array $metadata): ResponseInterface {
         throw new \RuntimeException('not implemented');
     }
 
@@ -188,8 +189,7 @@ final class CantoClient
      * @throws OAuthClientException
      * @throws \JsonException
      */
-    public function search(string $keyword, array $formatTypes, string $customQueryPart = '', int $offset = 0, int $limit = 50, array $orderings = []): ResponseInterface
-    {
+    public function search(string $keyword, array $formatTypes, string $customQueryPart = '', int $offset = 0, int $limit = 50, array $orderings = []): ResponseInterface {
         $pathAndQuery = 'search?keyword=' . urlencode($keyword);
 
         $pathAndQuery .= '&limit=' . urlencode((string)$limit);
@@ -227,8 +227,7 @@ final class CantoClient
      * @throws \JsonException
      * @throws Exception
      */
-    public function getCustomFields(): array
-    {
+    public function getCustomFields(): array {
         $cacheEntry = $this->apiResponsesCache->get('customFields');
         if ($cacheEntry !== false) {
             return $cacheEntry;
@@ -253,9 +252,8 @@ final class CantoClient
      * @throws OAuthClientException
      * @throws \JsonException
      */
-    public function user(): array
-    {
-        $response = $this->sendAuthenticatedRequest('user');
+    public function user($actionResponse = null): array {
+        $response = $this->sendAuthenticatedRequest('user', $actionResponse);
         if ($response->getStatusCode() === 200) {
             return json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
         }
@@ -272,9 +270,8 @@ final class CantoClient
      * @throws OAuthClientException
      * @throws \JsonException
      */
-    public function tree(): array
-    {
-        $response = $this->sendAuthenticatedRequest('tree');
+    public function tree($actionResponse = null): array {
+        $response = $this->sendAuthenticatedRequest('tree', $actionResponse);
         if ($response->getStatusCode() === 200) {
             return json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
         }
@@ -290,8 +287,7 @@ final class CantoClient
      * @throws MissingClientSecretException
      * @throws OAuthClientException
      */
-    public function directUri(string $assetProxyId): ?Uri
-    {
+    public function directUri(string $assetProxyId): ?Uri {
         [$scheme, $id] = explode('-', $assetProxyId);
 
         if ($this->authorization === null) {
@@ -328,8 +324,7 @@ final class CantoClient
      * @throws OAuthClientException
      * @throws \JsonException
      */
-    private function getAuthenticatedRequest(Authorization $authorization, string $uriPathAndQuery, string $method = 'GET', array $bodyFields = []): RequestInterface
-    {
+    private function getAuthenticatedRequest(Authorization $authorization, string $uriPathAndQuery, string $method = 'GET', array $bodyFields = []): RequestInterface {
         $accessToken = $authorization->getAccessToken();
         if ($accessToken === null) {
             throw new OAuthClientException(sprintf('Canto: Failed getting an authenticated request for client ID "%s" because the authorization contained no access token', $authorization->getClientId()), 1607087086);
@@ -358,10 +353,9 @@ final class CantoClient
      * @throws OAuthClientException
      * @throws \JsonException
      */
-    public function sendAuthenticatedRequest(string $uriPathAndQuery, string $method = 'GET', array $bodyFields = []): Response
-    {
+    public function sendAuthenticatedRequest(string $uriPathAndQuery, $actionResponse, string $method = 'GET', array $bodyFields = []): Response {
         if ($this->authorization === null) {
-            $this->authenticate();
+            $this->authenticate($actionResponse);
         }
 
         return $this->httpClient->send($this->getAuthenticatedRequest($this->authorization, $uriPathAndQuery, $method, $bodyFields));
@@ -374,8 +368,7 @@ final class CantoClient
      *
      * @return bool
      */
-    public function isAuthenticated(): bool
-    {
+    public function isAuthenticated(): bool {
         $oAuthClient = new CantoOAuthClient($this->serviceName);
 
         if ($this->securityContext->isInitialized()) {

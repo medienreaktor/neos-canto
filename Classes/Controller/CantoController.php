@@ -36,14 +36,12 @@ class CantoController extends AbstractModuleController
         $assetSource = $this->assetSourceService->getAssetSources()[CantoAssetSource::ASSET_SOURCE_IDENTIFIER];
         $apiBaseUri = $assetSource->getApiBaseUri();
         $this->view->assign('apiBaseUri', $apiBaseUri);
-
         try {
-
             $client = $assetSource->getCantoClient();
 
-            $this->view->assign('user', $client->user());
+            $this->view->assign('user', $client->user($this->response));
 
-            $this->view->assign('tree', $client->tree());
+            $this->view->assign('tree', $client->tree($this->response));
 
             $this->view->assign('connectionSucceeded', true);
 
