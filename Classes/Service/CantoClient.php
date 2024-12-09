@@ -104,6 +104,7 @@ final class CantoClient
 
         if ($this->securityContext->isInitialized()) {
             $account = $this->securityContext->getAccount();
+
             $accountAuthorization = $account ? $this->accountAuthorizationRepository->findOneByFlowAccountIdentifier($account->getAccountIdentifier()) : null;
 
             if ($accountAuthorization instanceof AccountAuthorization) {
@@ -113,6 +114,7 @@ final class CantoClient
             if ($this->authorization === null || ($this->authorization->getAccessToken() && $this->authorization->getAccessToken()->hasExpired())) {
                 $returnToUri = $this->getCurrentUri();
                 $this->uriBuilder->setRequest(ActionRequest::fromHttpRequest(ServerRequest::fromGlobals()));
+
                 $this->redirectToUri(
                     $this->uriBuilder
                         ->reset()
@@ -148,6 +150,7 @@ final class CantoClient
     private function redirectToUri(string $uri): void
     {
         header('Location: ' . $uri);
+        die();
         throw new StopActionException('Canto login required', 1625222167);
     }
 

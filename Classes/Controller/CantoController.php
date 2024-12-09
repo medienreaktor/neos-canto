@@ -38,13 +38,17 @@ class CantoController extends AbstractModuleController
         $this->view->assign('apiBaseUri', $apiBaseUri);
 
         try {
+
             $client = $assetSource->getCantoClient();
+
             $this->view->assign('user', $client->user());
 
             $this->view->assign('tree', $client->tree());
 
             $this->view->assign('connectionSucceeded', true);
+
         } catch (AuthenticationFailedException $e) {
+
             $this->view->assign('authenticationError', $e->getMessage());
         }
     }
