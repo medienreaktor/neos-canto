@@ -143,7 +143,7 @@ final class CantoClient {
         throw new \RuntimeException(sprintf('Active request handler (%s) does not implement Neos\Flow\Http\HttpRequestHandlerInterface, could not determine request URI', $rh::class), 1632465274);
     }
 
-    protected function redirectToUri($uri, $response) {
+    protected function redirectToUri($uri, $response = null) {
         if ($response) {
             if (!$uri instanceof UriInterface) {
                 $uri = new Uri($uri);
