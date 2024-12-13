@@ -353,7 +353,7 @@ final class CantoClient {
      * @throws OAuthClientException
      * @throws \JsonException
      */
-    public function sendAuthenticatedRequest(string $uriPathAndQuery, $actionResponse, string $method = 'GET', array $bodyFields = []): Response {
+    public function sendAuthenticatedRequest(string $uriPathAndQuery, $actionResponse = null, string $method = 'GET', array $bodyFields = []): Response {
         if ($this->authorization === null) {
             $this->authenticate($actionResponse);
         }
