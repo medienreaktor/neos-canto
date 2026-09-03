@@ -82,12 +82,13 @@ final class CantoAssetProxy implements AssetProxyInterface, HasRemoteOriginalInt
         $assetProxy->fileSize = (int)$jsonObject->size;
         $assetProxy->mediaType = MediaTypes::getMediaTypeFromFilename($jsonObject->name);
 
-        $assetProxy->tags = $jsonObject->tag ? array($jsonObject->tag) : [];
+        // documents and videos come back without these properties at all
+        $assetProxy->tags = ($jsonObject->tag ?? null) ? array($jsonObject->tag) : [];
 
         $assetProxy->iptcProperties['CopyrightNotice'] = $jsonObject->copyright ?? ($jsonObject->default->Copyright ?? '');
 
-        $assetProxy->widthInPixels = $jsonObject->width ? (int)$jsonObject->width : null;
-        $assetProxy->heightInPixels = $jsonObject->height ? (int)$jsonObject->height : null;
+        $assetProxy->widthInPixels = ($jsonObject->width ?? null) ? (int)$jsonObject->width : null;
+        $assetProxy->heightInPixels = ($jsonObject->height ?? null) ? (int)$jsonObject->height : null;
 
         $assetProxy->previewUri = $jsonObject->url->directUrlPreview;
 

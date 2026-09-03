@@ -18,8 +18,10 @@ use Flownative\Canto\Domain\Repository\AccountAuthorizationRepository;
 use Flownative\OAuth2\Client\Authorization;
 use Neos\Flow\Core\Bootstrap;
 use Neos\Flow\Package\Package as BasePackage;
+use Neos\Media\Domain\Service\AssetService;
 use Neos\Neos\Domain\Model\User;
 use Neos\Neos\Domain\Service\UserService;
+use Neos\Neos\Fusion\Cache\ContentCacheFlusher;
 
 class Package extends BasePackage
 {
@@ -30,6 +32,13 @@ class Package extends BasePackage
     public function boot(Bootstrap $bootstrap): void
     {
         $dispatcher = $bootstrap->getSignalSlotDispatcher();
+
+        // Neos.Neos only wires "assetUpdated" to the ContentCacheFlusher, but replacing
+        // an asset resource emits "assetResourceReplaced". Without this, pages keep
+        // rendering the previous resource URI - and since replaceAsset() deletes the old
+        // resource afterwards, that link turns into a 404.
+        $dispatcher->connect(AssetService::class, 'assetResourceReplaced', ContentCacheFlusher::class, 'registerAssetChange', false);
+
         $dispatcher->connect(
             UserService::class,
             'userDeleted',

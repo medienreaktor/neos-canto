@@ -27,6 +27,7 @@ use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Media\Domain\Model\AssetInterface;
+use Neos\Media\Domain\Model\AssetSource\AssetProxy\AssetProxyInterface;
 use Neos\Media\Domain\Model\ImageVariant;
 use Neos\Media\Domain\Repository\AssetRepository;
 use Neos\Media\Domain\Repository\ImportedAssetRepository;
@@ -127,7 +128,8 @@ final class AssetUpdateService {
             $this->persistenceManager->persistAll();
 
             return true;
-        } catch (\Throwable) {
+        } catch (\Throwable $throwable) {
+            $this->logger->error(sprintf('Metadata update failed for asset %s: %s', $identifier, $this->throwableStorage->logThrowable($throwable)), LogEnvironment::fromMethodName(__METHOD__));
             return false;
         }
     }
@@ -147,7 +149,8 @@ final class AssetUpdateService {
             $this->persistenceManager->persistAll();
 
             return true;
-        } catch (\Throwable) {
+        } catch (\Throwable $throwable) {
+            $this->logger->error(sprintf('Version update failed for asset %s: %s', $identifier, $this->throwableStorage->logThrowable($throwable)), LogEnvironment::fromMethodName(__METHOD__));
             return false;
         }
     }
@@ -169,7 +172,37 @@ final class AssetUpdateService {
             $this->persistenceManager->persistAll();
 
             return true;
-        } catch (\Throwable) {
+        } catch (\Throwable $throwable) {
+            $this->logger->error(sprintf('Removing asset %s failed: %s', $identifier, $this->throwableStorage->logThrowable($throwable)), LogEnvironment::fromMethodName(__METHOD__));
+            return false;
+        }
+    }
+
+    /**
+     * Re-import an asset outside of webhook handling, used by the resync command.
+     *
+     * Webhooks are fire and forget: a deployment, a failing request or a blocked
+     * call means the event is lost for good, because nothing ever retries it.
+     * This is the reconciliation path for those cases.
+     *
+     * @param string $identifier Canto identifier including the scheme, e.g. "document-abc123"
+     * @param AssetProxyInterface|null $assetProxy A proxy already fetched by the caller
+     */
+    public function synchronizeAsset(string $identifier, ?AssetProxyInterface $assetProxy = null): bool {
+        $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
+        if ($importedAsset === null) {
+            $this->logger->debug(sprintf('Sync skipped on non-imported asset %s', $identifier), LogEnvironment::fromMethodName(__METHOD__));
+            return false;
+        }
+
+        try {
+            $this->replaceAsset($identifier, $assetProxy);
+
+            $this->persistenceManager->persistAll();
+
+            return true;
+        } catch (\Throwable $throwable) {
+            $this->logger->error(sprintf('Sync failed for asset %s: %s', $identifier, $this->throwableStorage->logThrowable($throwable)), LogEnvironment::fromMethodName(__METHOD__));
             return false;
         }
     }
@@ -183,7 +216,7 @@ final class AssetUpdateService {
      * @throws GuzzleException
      * @throws InvalidDataException
      */
-    private function replaceAsset(string $identifier): void {
+    private function replaceAsset(string $identifier, ?AssetProxyInterface $assetProxy = null): void {
         $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
         $localAssetIdentifier = $importedAsset->getLocalAssetIdentifier();
 
@@ -197,8 +230,13 @@ final class AssetUpdateService {
         $previousResource = $localAsset->getResource();
 
         try {
-            $this->flushProxyForAsset($identifier);
-            $proxy = $this->getAssetSource()->getAssetProxyRepository()->getAssetProxy($identifier);
+            // callers that already hold a fresh proxy (the resync command) pass it in,
+            // so we neither flush the cache nor hit the Canto API a second time
+            $proxy = $assetProxy;
+            if ($proxy === null) {
+                $this->flushProxyForAsset($identifier);
+                $proxy = $this->getAssetSource()->getAssetProxyRepository()->getAssetProxy($identifier);
+            }
             $newResource = $this->resourceManager->importResource($proxy->getImportStream());
         } catch (\Exception $e) {
             $this->logger->debug(sprintf('Could not import resource for asset %s from %s, exception: %s', $localAssetIdentifier, $identifier, $this->throwableStorage->logThrowable($e)), LogEnvironment::fromMethodName(__METHOD__));
@@ -236,10 +274,8 @@ final class AssetUpdateService {
             $this->resourceManager->deleteResource($previousResource);
             $this->logger->warning(sprintf('deleted resource for asset %s', json_encode($localAsset)), LogEnvironment::fromMethodName(__METHOD__));
 
-        } catch (IllegalObjectTypeException $e) {
-
-        } catch (AssetServiceException $e) {
-
+        } catch (IllegalObjectTypeException | AssetServiceException $e) {
+            $this->logger->error(sprintf('Could not remove asset %s from %s: %s', $localAssetIdentifier, $identifier, $this->throwableStorage->logThrowable($e)), LogEnvironment::fromMethodName(__METHOD__));
         }
     }
 
