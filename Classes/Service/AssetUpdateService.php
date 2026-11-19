@@ -16,6 +16,7 @@ namespace Flownative\Canto\Service;
 use Flownative\Canto\AssetSource\CantoAssetSource;
 use Flownative\Canto\Exception\AssetNotFoundException;
 use Flownative\Canto\Exception\AuthenticationFailedException;
+use Doctrine\ORM\EntityManagerInterface;
 use Flownative\OAuth2\Client\OAuthClientException;
 use GuzzleHttp\Exception\GuzzleException;
 use Neos\Cache\Exception;
@@ -87,6 +88,12 @@ final class AssetUpdateService {
      * @var AssetSourceService
      */
     protected $assetSourceService;
+
+    /**
+     * @Flow\Inject
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
 
     public function handleEvent(string $event, array $payload): bool {
         switch ($event) {
@@ -208,6 +215,12 @@ final class AssetUpdateService {
             // flush them, fail on the database and close the EntityManager for the rest of
             // the run, so this asset's unsaved changes are discarded here.
             $this->persistenceManager->clearState();
+            // A failed flush closes the EntityManager for good. Flow then skips every later
+            // persistAll() with a log entry only, and each further asset would be reported as
+            // updated without being saved, so the run has to stop here.
+            if (!$this->entityManager->isOpen()) {
+                throw new \RuntimeException(sprintf('Syncing asset %s closed the EntityManager, no later change of this run could be saved', $identifier), 1795180800, $throwable);
+            }
             return false;
         }
     }
