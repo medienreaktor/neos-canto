@@ -203,6 +203,11 @@ final class AssetUpdateService {
             return true;
         } catch (\Throwable $throwable) {
             $this->logger->error(sprintf('Sync failed for asset %s: %s', $identifier, $this->throwableStorage->logThrowable($throwable)), LogEnvironment::fromMethodName(__METHOD__));
+            // A replacement that failed halfway leaves changes behind, e.g. an image variant
+            // whose old resource is already removed. The next asset's persistAll() would
+            // flush them, fail on the database and close the EntityManager for the rest of
+            // the run, so this asset's unsaved changes are discarded here.
+            $this->persistenceManager->clearState();
             return false;
         }
     }
