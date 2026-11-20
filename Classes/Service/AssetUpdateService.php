@@ -27,6 +27,7 @@ use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\Persistence\Exception\IllegalObjectTypeException;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Flow\ResourceManagement\ResourceManager;
+use Neos\Media\Domain\Model\Asset;
 use Neos\Media\Domain\Model\AssetInterface;
 use Neos\Media\Domain\Model\AssetSource\AssetProxy\AssetProxyInterface;
 use Neos\Media\Domain\Model\ImageVariant;
@@ -194,8 +195,10 @@ final class AssetUpdateService {
      *
      * @param string $identifier Canto identifier including the scheme, e.g. "document-abc123"
      * @param AssetProxyInterface|null $assetProxy A proxy already fetched by the caller
+     * @param Asset|null $localAsset The local asset to update; a remote asset imported more than once has several,
+     *                               and looking it up by the Canto identifier always finds the same one
      */
-    public function synchronizeAsset(string $identifier, ?AssetProxyInterface $assetProxy = null): bool {
+    public function synchronizeAsset(string $identifier, ?AssetProxyInterface $assetProxy = null, ?Asset $localAsset = null): bool {
         $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
         if ($importedAsset === null) {
             $this->logger->debug(sprintf('Sync skipped on non-imported asset %s', $identifier), LogEnvironment::fromMethodName(__METHOD__));
@@ -203,7 +206,7 @@ final class AssetUpdateService {
         }
 
         try {
-            $this->replaceAsset($identifier, $assetProxy);
+            $this->replaceAsset($identifier, $assetProxy, $localAsset);
 
             $this->persistenceManager->persistAll();
 
@@ -234,12 +237,13 @@ final class AssetUpdateService {
      * @throws GuzzleException
      * @throws InvalidDataException
      */
-    private function replaceAsset(string $identifier, ?AssetProxyInterface $assetProxy = null): void {
-        $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
-        $localAssetIdentifier = $importedAsset->getLocalAssetIdentifier();
-
-        /** @var AssetInterface $localAsset */
-        $localAsset = $this->assetRepository->findByIdentifier($localAssetIdentifier);
+    private function replaceAsset(string $identifier, ?AssetProxyInterface $assetProxy = null, ?Asset $localAsset = null): void {
+        if ($localAsset === null) {
+            $importedAsset = $this->importedAssetRepository->findOneByAssetSourceIdentifierAndRemoteAssetIdentifier(CantoAssetSource::ASSET_SOURCE_IDENTIFIER, $identifier);
+            /** @var AssetInterface $localAsset */
+            $localAsset = $this->assetRepository->findByIdentifier($importedAsset->getLocalAssetIdentifier());
+        }
+        $localAssetIdentifier = $this->persistenceManager->getIdentifierByObject($localAsset);
         if ($localAsset instanceof ImageVariant) {
             $this->logger->debug(sprintf('Did not replace resource on %s from %s, the local asset is an ImageVariant', $localAssetIdentifier, $identifier), LogEnvironment::fromMethodName(__METHOD__));
             return;

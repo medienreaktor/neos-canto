@@ -218,7 +218,7 @@ class CantoCommandController extends CommandController
                 continue;
             }
 
-            if ($this->assetUpdateService->synchronizeAsset($assetProxy->getIdentifier(), $assetProxy)) {
+            if ($this->assetUpdateService->synchronizeAsset($assetProxy->getIdentifier(), $assetProxy, $asset)) {
                 $this->outputLine('  updated   %s', [$currentFilename]);
                 $this->outputLine('            -> %s', [$cantoFilename]);
                 $updated++;
