@@ -27,6 +27,7 @@ use Neos\Media\Domain\Repository\AssetRepository;
 use Neos\Media\Domain\Repository\ImportedAssetRepository;
 use Neos\Media\Domain\Repository\TagRepository;
 use Neos\Media\Domain\Service\AssetSourceService;
+use Neos\Utility\Unicode\Functions as UnicodeFunctions;
 
 class CantoCommandController extends CommandController
 {
@@ -206,7 +207,7 @@ class CantoCommandController extends CommandController
             $checked++;
             $currentFilename = $asset->getResource()->getFilename();
             $cantoFilename = $assetProxy->getFilename();
-            if ($currentFilename === $cantoFilename) {
+            if ($currentFilename === self::storedFilename($cantoFilename)) {
                 continue;
             }
 
@@ -319,5 +320,15 @@ class CantoCommandController extends CommandController
         }
 
         !$quiet && $this->outputLine('<success>Import done.</success>');
+    }
+
+    /**
+     * The filename as Flow stores it: PersistentResource::setFilename() lowercases the extension,
+     * so a Canto name like "IMG_6049.JPG" never equals the stored "IMG_6049.jpg"
+     */
+    private static function storedFilename(string $filename): string
+    {
+        $pathInfo = UnicodeFunctions::pathinfo($filename);
+        return $pathInfo['filename'] . (isset($pathInfo['extension']) ? '.' . strtolower($pathInfo['extension']) : '');
     }
 }
